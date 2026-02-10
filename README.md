@@ -136,7 +136,7 @@ The parser expects a typical university department timetable layout:
 
 **Muneeb u Rehman** — Superior University
 
-- [GitHub](https://github.com/muneeb-u-rehman)
+- [GitHub](https://github.com/Muneeb-U-Rehman-Chaudary)
 - [LinkedIn](https://www.linkedin.com/in/muneeb-u-rehman-a0151a31a)
 
 ## License
