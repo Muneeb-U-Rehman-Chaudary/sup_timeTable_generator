@@ -71,12 +71,58 @@ function isSkippable(text: string): boolean {
 }
 
 function splitTimeSlot(ts: string): { start: string; end: string } {
-  const parts = ts.split(/[-–]+/);
-  return {
-    start: (parts[0] || "").trim(),
-    end: (parts[1] || "").trim(),
-  };
-}
+    const parts = ts.split(/[-–]+/);
+    return {
+      start: (parts[0] || "").trim(),
+      end: (parts[1] || "").trim(),
+    };
+  }
+
+  /** Convert time string like "8:00", "08:00", "10:45" to minutes since midnight for numeric sorting.
+   *  Handles 12-hour format without AM/PM: hours 1-7 are treated as PM (13:00-19:00),
+   *  hours 8-12 are treated as AM/noon (08:00-12:00). Typical university schedule range. */
+  function timeToMinutes(t: string): number {
+    const cleaned = t.replace(/\s/g, "").replace(/\./g, ":");
+    const match = cleaned.match(/^(\d{1,2}):(\d{2})$/);
+    if (!match) return 9999;
+    let hours = parseInt(match[1], 10);
+    const mins = parseInt(match[2], 10);
+    // University times: 1-7 are PM (13:00-19:00), 8-12 stay as-is
+    if (hours >= 1 && hours <= 7) {
+      hours += 12;
+    }
+    return hours * 60 + mins;
+  }
+
+  /** Merge consecutive identical classes (same section, day, subject, teacher, room) into one with combined time */
+  function mergeConsecutiveClasses(entries: LectureEntry[]): LectureEntry[] {
+    if (entries.length === 0) return entries;
+
+    const merged: LectureEntry[] = [];
+    let current = { ...entries[0] };
+
+    for (let i = 1; i < entries.length; i++) {
+      const next = entries[i];
+      // Check if same section, day, subject, teacher, room and times are consecutive
+      if (
+        current.section === next.section &&
+        current.day === next.day &&
+        current.subject === next.subject &&
+        current.teacher === next.teacher &&
+        current.room === next.room &&
+        current.endTime === next.startTime
+      ) {
+        // Merge: extend current's end time
+        current.endTime = next.endTime;
+        current.time = `${current.startTime} - ${next.endTime}`;
+      } else {
+        merged.push(current);
+        current = { ...next };
+      }
+    }
+    merged.push(current);
+    return merged;
+  }
 
 // Section pattern: BS followed by 2-4 uppercase letters, dash, digit(s), optional letter
 const SECTION_RE = /BS[A-Z]{2,4}-\d+[A-Z]?(?:Combined)?/gi;
@@ -272,12 +318,12 @@ export async function POST(req: NextRequest) {
     const dayOrder: Record<string, number> = {
       Monday: 0, Tuesday: 1, Wednesday: 2, Thursday: 3, Friday: 4, Saturday: 5, Sunday: 6,
     };
-    deduped.sort((a, b) => {
-      const dA = dayOrder[a.day] ?? 99;
-      const dB = dayOrder[b.day] ?? 99;
-      if (dA !== dB) return dA - dB;
-      return a.time.localeCompare(b.time);
-    });
+      deduped.sort((a, b) => {
+        const dA = dayOrder[a.day] ?? 99;
+        const dB = dayOrder[b.day] ?? 99;
+        if (dA !== dB) return dA - dB;
+        return timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
+      });
 
     // Filter if section specified
     const entries = sectionFilter
@@ -300,34 +346,39 @@ export async function POST(req: NextRequest) {
       }
     > = {};
 
-    for (const sec of sectionsToShow) {
-      const secEntries = entries.filter((e) => e.section === sec);
-      if (secEntries.length === 0) continue;
+      for (const sec of sectionsToShow) {
+        const secEntries = entries.filter((e) => e.section === sec);
+        if (secEntries.length === 0) continue;
 
-      const days = [...new Set(secEntries.map((e) => e.day))].sort(
-        (a, b) => (dayOrder[a] ?? 99) - (dayOrder[b] ?? 99)
-      );
-      const times = [...new Set(secEntries.map((e) => e.time))].sort((a, b) =>
-        a.localeCompare(b)
-      );
+        // Merge consecutive identical classes
+        const mergedEntries = mergeConsecutiveClasses(secEntries);
 
-      const grid: Record<string, Record<string, { subject: string; teacher: string; room: string }>> = {};
-      for (const t of times) {
-        grid[t] = {};
-        for (const d of days) {
-          const match = secEntries.find((e) => e.day === d && e.time === t);
-          if (match) {
-            grid[t][d] = {
-              subject: match.subject,
-              teacher: match.teacher,
-              room: match.room,
-            };
+        const days = [...new Set(mergedEntries.map((e) => e.day))].sort(
+          (a, b) => (dayOrder[a] ?? 99) - (dayOrder[b] ?? 99)
+        );
+        const times = [...new Set(mergedEntries.map((e) => e.time))].sort((a, b) => {
+          const aStart = a.split(/[-–]/)[0]?.trim() || "";
+          const bStart = b.split(/[-–]/)[0]?.trim() || "";
+          return timeToMinutes(aStart) - timeToMinutes(bStart);
+        });
+
+        const grid: Record<string, Record<string, { subject: string; teacher: string; room: string }>> = {};
+        for (const t of times) {
+          grid[t] = {};
+          for (const d of days) {
+            const match = mergedEntries.find((e) => e.day === d && e.time === t);
+            if (match) {
+              grid[t][d] = {
+                subject: match.subject,
+                teacher: match.teacher,
+                room: match.room,
+              };
+            }
           }
         }
-      }
 
-      sectionData[sec] = { entries: secEntries, grid, days, times };
-    }
+        sectionData[sec] = { entries: mergedEntries, grid, days, times };
+      }
 
     return NextResponse.json({
       section: sectionFilter || "ALL",
