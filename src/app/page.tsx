@@ -353,7 +353,6 @@ export default function Home() {
              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <Image src='/images/image1.png' alt='Logo' width={50} height={50} />
         </div>
-          <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: "-0.02em" }}>Timetable Generator</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {data && (
