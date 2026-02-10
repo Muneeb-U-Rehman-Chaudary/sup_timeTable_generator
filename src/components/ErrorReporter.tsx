@@ -100,7 +100,7 @@ export default function ErrorReporter({ error, reset }: ReporterProps) {
       <body className="min-h-screen bg-background text-foreground flex items-center justify-center p-4">
         <div className="max-w-md w-full text-center space-y-6">
           <div className="space-y-2">
-            <h1 className="text-2xl font-bold text-destructive">
+            <h1 className="text-2xl font-bold text-blue-600">
               Something went wrong!
             </h1>
             <p className="text-muted-foreground">
