@@ -1,0 +1,35 @@
+The /api/parse route accepts an uploaded Excel file (.xlsx) and an optional section filter, then extracts a structured university timetable from it.
+
+Step-by-step logic:
+Read the file — The uploaded file is read into a buffer and parsed with the xlsx library into a workbook.
+
+Build a merge map — Excel merged cells are mapped so that any cell within a merged range resolves back to the top-left origin cell. This is critical because timetable spreadsheets heavily use merged cells (e.g., a day name spanning multiple rows).
+
+Scan rows top-to-bottom per sheet — For each row, the parser looks for:
+
+Day names (columns 0-2): If a cell contains "Monday", "Tuesday", etc., it sets currentDay. This persists until the next day is found.
+Time header rows (columns 2+): If a row has 3+ time slots like 08:00-09:30, those columns are saved as currentTimeSlots. This maps which column corresponds to which time slot.
+Room rows: If column B contains a room name (e.g., "Lecture Room # 05", "Computer Lab # 10"), this is a data row.
+Parse lecture cells — For each data row (room row), it reads the cell at each time slot column. Each cell typically contains multi-line text like:
+
+Data Structures
+Mr. Ahmed Khan
+BSCS-3A
+The parseCell function splits this into:
+
+Subject: First line that isn't a section code, teacher name, or time override
+Teacher: Line starting with Mr./Ms./Dr.
+Sections: All BS____-#X codes extracted via regex (handles combined sections like BSSE-4A/BSAI-3A)
+Deduplicate — Entries with identical section+day+time+subject+teacher+room are removed.
+
+Sort — By day (Mon-Sun), then by time.
+
+Filter — If a section filter was provided (e.g., "BSCS-3A"), only matching entries are returned.
+
+Build grid — For each section, a 2D grid (time x day) is built for easy timetable rendering on the frontend.
+
+Key design decisions:
+Merge-aware cell reading handles the complex merged-cell layouts typical in university timetables
+Regex-based section extraction (BS[A-Z]{2,4}-\d+[A-Z]?) catches all department/section combinations
+Room name normalization shortens verbose names (e.g., "Lecture Room # 05" → "Room # 05")
+Skippable content detection filters out noise like "Jumma Prayer", "IT Department", floor labels
