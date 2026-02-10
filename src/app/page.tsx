@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useState, useEffect, useRef, useCallback } from "react";
 
 interface LectureEntry {
@@ -61,11 +60,14 @@ export default function Home() {
 
   useEffect(() => {
     const stored = loadFromStorage();
-    if (stored) {
-      setData(stored);
-      const s = Object.keys(stored.sectionData);
-      if (s.length > 0) setActiveSection(s[0]);
-    }
+      if (stored) {
+        setData(stored);
+        const s = Object.keys(stored.sectionData);
+        if (s.length > 0) {
+          const preferred = s.find(sec => sec === "BSSE-4C");
+          setActiveSection(preferred ?? s[0]);
+        }
+      }
     const fn = localStorage.getItem(FILE_KEY);
     if (fn) setFileName(fn);
     setHydrated(true);
@@ -88,8 +90,13 @@ export default function Home() {
       saveToStorage(result);
       setFileName(file.name);
       try { localStorage.setItem(FILE_KEY, file.name); } catch {}
-      const sections = Object.keys(result.sectionData);
-      setActiveSection(sections.length > 0 ? sections[0] : "");
+        const sections = Object.keys(result.sectionData);
+        if (sections.length > 0) {
+          const preferred = sections.find(sec => sec === "BSSE-4C");
+          setActiveSection(preferred ?? sections[0]);
+        } else {
+          setActiveSection("");
+        }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed");
     } finally {
@@ -342,7 +349,17 @@ export default function Home() {
         background: c.navBg, backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)",
       }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <Image src='/images/image1.png' alt='Logo' width={50} height={50} />
+            <div style={{
+              width: 24, height: 24, borderRadius: 6,
+              background: `linear-gradient(135deg, ${c.accent}, #a78bfa)`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#fff" strokeWidth={2.5}>
+                <rect x="3" y="4" width="18" height="18" rx="2" />
+                <path d="M16 2v4M8 2v4M3 10h18" />
+              </svg>
+            </div>
+          <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: "-0.02em" }}>Timetable Generator</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {data && (
@@ -367,7 +384,7 @@ export default function Home() {
               >
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
                 </a>
-                <a href="https://github.com/Muneeb-U-Rehman-Chaudary/" target="_blank" rel="noopener noreferrer" style={{
+                <a href="https://github.com/muneeb-u-rehman" target="_blank" rel="noopener noreferrer" style={{
                   width: 34, height: 34, borderRadius: 6, border: `1px solid ${c.cardBorder}`,
                   background: "transparent", display: "flex", alignItems: "center", justifyContent: "center",
                   color: c.fgMuted, textDecoration: "none", transition: "all 0.2s",
@@ -609,7 +626,7 @@ export default function Home() {
               display: "flex", flexDirection: "column", alignItems: "center", gap: 12,
             }}>
               <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                <a href="https://github.com/Muneeb-U-Rehman-Chaudary/" target="_blank" rel="noopener noreferrer" style={{ color: c.fgMuted, transition: "color 0.2s", textDecoration: "none" }}
+                <a href="https://github.com/muneeb-u-rehman" target="_blank" rel="noopener noreferrer" style={{ color: c.fgMuted, transition: "color 0.2s", textDecoration: "none" }}
                   onMouseEnter={e => e.currentTarget.style.color = c.fg}
                   onMouseLeave={e => e.currentTarget.style.color = c.fgMuted}
                 >
