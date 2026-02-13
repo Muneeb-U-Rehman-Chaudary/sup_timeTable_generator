@@ -1,393 +1,482 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 
+const HF_API = "https://router.huggingface.co/v1/chat/completions";
+const HF_TOKEN = process.env.HUGGINGFACE_API_TOKEN || "";
+
+// ────────────────────────────────────────────────
+// TYPES
+// ────────────────────────────────────────────────
+
 interface LectureEntry {
   day: string;
-  time: string;
-  startTime: string;
-  endTime: string;
+  time: string;          // e.g. "10:45 AM – 1:25 PM"
+  startTime: string;     // now 12h e.g. "10:45 AM"
+  endTime: string;       // now 12h e.g. "1:25 PM"
   subject: string;
   teacher: string;
   room: string;
   section: string;
 }
 
-const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+interface TimeSlotInfo {
+  col: number;
+  raw: string;
+  start12: string;       // 12h format
+  end12: string;         // 12h format
+}
 
-function isDayName(text: string): string | null {
-  const lower = text.toLowerCase().trim().replace(/\s+/g, "");
-  for (const day of DAYS) {
-    if (lower === day || lower.startsWith(day)) {
-      return day.charAt(0).toUpperCase() + day.slice(1);
+// ────────────────────────────────────────────────
+// HELPERS
+// ────────────────────────────────────────────────
+
+const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const DAY_KEYWORDS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun", ...DAY_NAMES.map(d => d.toLowerCase())];
+
+const DAY_ORDER: Record<string, number> = {
+  Monday: 0, Tuesday: 1, Wednesday: 2, Thursday: 3, Friday: 4, Saturday: 5, Sunday: 6
+};
+
+function normalizeDayName(raw: string): string | null {
+  const cleaned = raw.toLowerCase().trim().replace(/[^a-z]/g, "");
+  for (const kw of DAY_KEYWORDS) {
+    if (cleaned.includes(kw)) {
+      return DAY_NAMES[DAY_KEYWORDS.indexOf(kw) % 7];
     }
   }
   return null;
 }
 
-function isTimeSlot(text: string): boolean {
-  return /\d{1,2}[:.]\d{2}\s*[-–]+\s*\d{1,2}[:.]\d{2}/i.test(text.replace(/\s/g, ""));
+function isLikelyTimeSlot(text: string): boolean {
+  const cleaned = text.replace(/\s+/g, "").replace(/[.:-–—]/g, "");
+  return /\d{3,4}-\d{3,4}/.test(cleaned) ||
+         /\d{1,2}:\d{2}-\d{1,2}:\d{2}/.test(cleaned) ||
+         /\d{1,2}\.\d{2}-\d{1,2}\.\d{2}/.test(cleaned);
 }
 
-function isRoomName(text: string): boolean {
-    const lower = text.toLowerCase().trim();
-    return (
-      /lecture\s*room/i.test(lower) ||
-      /computer\s*lab/i.test(lower) ||
-      /auditorium/i.test(lower) ||
-      /^lab/i.test(lower) ||
-      /^room/i.test(lower) ||
-      /main\s*auditorium/i.test(lower)
-    );
-  }
+function normalizeTimeSlot(raw: string): { start12: string; end12: string } | null {
+  const cleaned = raw.trim().replace(/\s+/g, " ");
+  const patterns = [
+    /(\d{1,2})[:.](\d{2})\s*[-–—]\s*(\d{1,2})[:.](\d{2})/,
+    /(\d{2})(\d{2})[-–—](\d{2})(\d{2})/,
+  ];
 
-  function extractRoomShort(text: string): string {
-    // "Lecture Room # 05" -> "Room # 05"
-    const lectureRoom = text.match(/lecture\s*room\s*#?\s*(\d+)/i);
-    if (lectureRoom) return `Room # ${lectureRoom[1]}`;
-    // "Computer Lab # 10" -> "Lab-10"
-    const compLab = text.match(/computer\s*lab\s*#?\s*(\d+)/i);
-    if (compLab) return `Lab-${compLab[1]}`;
-    // "Lab # 7" or "Lab-7"
-    const lab = text.match(/lab\s*[-#]?\s*(\d+)/i);
-    if (lab) return `Lab-${lab[1]}`;
-    // "Room # 28"
-    const room = text.match(/room\s*#?\s*(\d+)/i);
-    if (room) return `Room # ${room[1]}`;
-    // "Main Auditorium"
-    if (/auditorium/i.test(text)) return "Auditorium";
-    return text.trim();
-  }
+  for (const p of patterns) {
+    const m = cleaned.match(p);
+    if (m) {
+      let h1 = parseInt(m[1], 10), m1 = parseInt(m[2], 10);
+      let h2 = parseInt(m[3], 10), m2 = parseInt(m[4], 10);
 
-function isSkippable(text: string): boolean {
+      if (h1 <= 7) h1 += 12;
+      if (h2 <= 7) h2 += 12;
+
+      if (h1 > 23 || h2 > 23 || m1 > 59 || m2 > 59) continue;
+
+      const start12 = to12Hour(`${h1.toString().padStart(2,"0")}:${m1.toString().padStart(2,"0")}`);
+      const end12 = to12Hour(`${h2.toString().padStart(2,"0")}:${m2.toString().padStart(2,"0")}`);
+
+      return { start12, end12 };
+    }
+  }
+  return null;
+}
+
+function to12Hour(time24: string): string {
+  if (!time24.includes(':')) return time24;
+  let [h, m] = time24.split(':').map(Number);
+  const period = h >= 12 ? 'PM' : 'AM';
+  if (h > 12) h -= 12;
+  if (h === 0) h = 12;
+  return `${h}:${m.toString().padStart(2, '0')} ${period}`;
+}
+
+// Helper to convert 12h time back to minutes for sorting/merging
+function time12ToMinutes(time12: string): number {
+  const [time, period] = time12.split(' ');
+  let [h, m] = time.split(':').map(Number);
+  if (period === 'PM' && h !== 12) h += 12;
+  if (period === 'AM' && h === 12) h = 0;
+  return h * 60 + m;
+}
+
+function isLikelyRoom(text: string): boolean {
   const lower = text.toLowerCase().trim();
   return (
-    lower.includes("used in") ||
-    lower === "it department" ||
-    lower === "jumma prayer" ||
-    lower === "" ||
-    lower === "rooms" ||
-    /^(ground|1st|2nd|3rd|ist|!st)\s*floor$/i.test(lower)
+    lower.includes("room") ||
+    lower.includes("lab") ||
+    lower.includes("auditorium") ||
+    lower.includes("hall") ||
+    /^[A-Za-z]{1,3}\s*-?\s*\d{2,4}$/.test(lower) ||
+    /^L?R?-?\d{2,4}$/.test(lower)
   );
 }
 
-function splitTimeSlot(ts: string): { start: string; end: string } {
-    const parts = ts.split(/[-–]+/);
-    return {
-      start: (parts[0] || "").trim(),
-      end: (parts[1] || "").trim(),
-    };
+function normalizeRoomName(raw: string): string {
+  const lower = raw.trim().toLowerCase();
+  if (lower.includes("auditorium")) return "Auditorium";
+  if (lower.includes("main hall")) return "Main Hall";
+
+  const numMatch = raw.match(/(\d{2,4})/);
+  if (numMatch) {
+    if (lower.includes("lab") || lower.includes("computer")) return `Lab-${numMatch[1]}`;
+    if (lower.includes("room") || lower.includes("lecture")) return `Room #${numMatch[1]}`;
   }
-
-  /** Convert time string like "8:00", "08:00", "10:45" to minutes since midnight for numeric sorting.
-   *  Handles 12-hour format without AM/PM: hours 1-7 are treated as PM (13:00-19:00),
-   *  hours 8-12 are treated as AM/noon (08:00-12:00). Typical university schedule range. */
-  function timeToMinutes(t: string): number {
-    const cleaned = t.replace(/\s/g, "").replace(/\./g, ":");
-    const match = cleaned.match(/^(\d{1,2}):(\d{2})$/);
-    if (!match) return 9999;
-    let hours = parseInt(match[1], 10);
-    const mins = parseInt(match[2], 10);
-    // University times: 1-7 are PM (13:00-19:00), 8-12 stay as-is
-    if (hours >= 1 && hours <= 7) {
-      hours += 12;
-    }
-    return hours * 60 + mins;
-  }
-
-  /** Merge consecutive identical classes (same section, day, subject, teacher, room) into one with combined time */
-  function mergeConsecutiveClasses(entries: LectureEntry[]): LectureEntry[] {
-    if (entries.length === 0) return entries;
-
-    const merged: LectureEntry[] = [];
-    let current = { ...entries[0] };
-
-    for (let i = 1; i < entries.length; i++) {
-      const next = entries[i];
-      // Check if same section, day, subject, teacher, room and times are consecutive
-      if (
-        current.section === next.section &&
-        current.day === next.day &&
-        current.subject === next.subject &&
-        current.teacher === next.teacher &&
-        current.room === next.room &&
-        current.endTime === next.startTime
-      ) {
-        // Merge: extend current's end time
-        current.endTime = next.endTime;
-        current.time = `${current.startTime} - ${next.endTime}`;
-      } else {
-        merged.push(current);
-        current = { ...next };
-      }
-    }
-    merged.push(current);
-    return merged;
-  }
-
-// Section pattern: BS followed by 2-4 uppercase letters, dash, digit(s), optional letter
-const SECTION_RE = /BS[A-Z]{2,4}-\d+[A-Z]?(?:Combined)?/gi;
-// Combined section pattern: e.g. "BSDS-3A/BSAI-3A" or "BSSE-4A/BSCS-4A"
-const COMBINED_SECTION_RE = /BS[A-Z]{2,4}-\d+[A-Z]?\s*\/\s*BS[A-Z]{2,4}-\d+[A-Z]?/gi;
-
-function extractSections(cellText: string): string[] {
-    // Find ALL individual section codes (BS...-\d+[A-Z]?) in the text
-    // This automatically handles combined forms like "BSSE-4C/BSAI-7A"
-    // by extracting each part separately: ["BSSE-4C", "BSAI-7A"]
-    const matches = cellText.match(SECTION_RE);
-    if (!matches) return [];
-    return [...new Set(matches.map((s) => s.toUpperCase()))];
-  }
-
-function parseCell(cellText: string): {
-  subject: string;
-  teacher: string;
-  sections: string[];
-} {
-  const sections = extractSections(cellText);
-  const lines = cellText
-    .split(/[\r\n]+/)
-    .map((l) => l.trim())
-    .filter(Boolean);
-
-  let subject = "";
-  let teacher = "";
-
-  for (const line of lines) {
-    // Skip section codes
-    if (/^BS[A-Z]{2,4}-/i.test(line.trim())) continue;
-    // Skip combined section lines like "BSAI-3A/BSDS-3A"
-    if (/^BS[A-Z]{2,4}-\d+\w?\s*\/\s*BS/i.test(line.trim())) continue;
-    // Skip time overrides like "(08:00 am - 09:40 am)"
-    if (/^\(?\s*\d{1,2}[:.]\d{2}\s*(am|pm)/i.test(line.trim())) continue;
-
-    // Teacher lines typically start with Mr./Ms./Dr. or contain them
-    if (/^(Mr\.|Ms\.|Dr\.|Muhammad\s)/i.test(line.trim())) {
-      if (!teacher) teacher = line.trim();
-    } else {
-      // First non-section, non-teacher, non-time line is the subject
-      if (!subject) {
-      // Remove any inline section codes (combined and individual)
-          const cleaned = line.replace(COMBINED_SECTION_RE, "").replace(SECTION_RE, "").replace(/^\s*\/\s*|\s*\/\s*$/g, "").trim();
-        if (cleaned.length > 1) subject = cleaned;
-      }
-    }
-  }
-
-  return {
-    subject: subject || "Unknown Subject",
-    teacher: teacher || "Unknown Teacher",
-    sections,
-  };
+  return raw.trim();
 }
+
+const SECTION_PATTERN = /\b(BS[A-Z]{2,4}-\d{1,2}[A-Za-z]?)(?:Combined)?\b/gi;
+
+function extractAllSections(text: string): string[] {
+  const matches = [...text.matchAll(SECTION_PATTERN)];
+  const sections = matches.map(m => m[1].toUpperCase());
+  return [...new Set(sections)];
+}
+
+function isProbablyHeaderOrNote(text: string): boolean {
+  const lower = text.toLowerCase().trim();
+  return (
+    !text.trim() ||
+    lower.includes("time table") || lower.includes("timetable") ||
+    lower.includes("schedule") || lower.includes("department") ||
+    lower.includes("semester") || lower.includes("updated") ||
+    lower.includes("effective from") || lower.includes("note:") ||
+    lower.includes("page") || lower.includes("s.no") || lower.includes("sr.#") ||
+    lower.includes("jumma prayer") || lower.includes("lunch") || lower.includes("break")
+  );
+}
+
+// ────────────────────────────────────────────────
+// AI DIAGNOSTIC
+// ────────────────────────────────────────────────
+
+async function getAiDiagnostic(
+  sampleCells: string[],
+  parsedCount: number,
+  foundSections: string[]
+): Promise<string | null> {
+  if (!HF_TOKEN) {
+    console.log("[AI Diagnostic] SKIPPED → No Hugging Face token provided");
+    return null;
+  }
+
+  console.log("[AI Diagnostic] Starting API call (token length:", HF_TOKEN.length, ")");
+
+  const prompt = `<s>[INST] You are an expert at analyzing university timetable Excel files.
+Given the following sample cell contents and parsing statistics, write ONLY a short diagnostic report (max 5 bullet points):
+
+Samples (first 20 non-empty cells):
+${sampleCells.slice(0, 20).join("\n")}
+
+Parsing result:
+- Found ${parsedCount} lecture entries
+- Detected ${foundSections.length} sections: ${foundSections.slice(0,8).join(", ") || "none"}${foundSections.length > 8 ? "..." : ""}
+
+Write ONLY:
+• Is this likely a valid timetable structure? (yes/no + short reason)
+• Main parsing approach that seems to fit
+• Any obvious issues / missed information you notice
+• Confidence in correctness: High / Medium / Low
+• One sentence suggestion to improve parsing if needed
+
+Be concise. No introduction, no markdown, just bullets. [/INST]`;
+
+  try {
+    const res = await fetch(HF_API, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${HF_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "Qwen/Qwen2.5-7B-Instruct",
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 280,
+        temperature: 0.25,
+        top_p: 0.9,
+      }),
+    });
+
+    console.log("[AI Diagnostic] Response status:", res.status);
+
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => "(could not read error body)");
+      console.log("[AI Diagnostic] API failed:", res.status, errorText);
+      return null;
+    }
+
+    const json = await res.json();
+    const answer = json?.choices?.[0]?.message?.content?.trim() || null;
+
+    if (answer) {
+      console.log("[AI Diagnostic] Success – generated text length:", answer.length);
+    } else {
+      console.log("[AI Diagnostic] No content returned from model");
+    }
+
+    return answer;
+  } catch (err) {
+    console.error("[AI Diagnostic] Network / parsing error:", err);
+    return null;
+  }
+}
+
+// ────────────────────────────────────────────────
+// MERGE CONSECUTIVE CLASSES (updated for 12h times)
+// ────────────────────────────────────────────────
+
+function mergeConsecutiveClasses(entries: LectureEntry[]): LectureEntry[] {
+  if (entries.length <= 1) return entries;
+
+  const merged: LectureEntry[] = [];
+  let current = { ...entries[0] };
+
+  for (let i = 1; i < entries.length; i++) {
+    const next = entries[i];
+
+    const sameClass =
+      current.section === next.section &&
+      current.day === next.day &&
+      current.subject === next.subject &&
+      current.teacher === next.teacher &&
+      current.room === next.room;
+
+    const consecutive = time12ToMinutes(current.endTime) === time12ToMinutes(next.startTime);
+
+    if (sameClass && consecutive) {
+      current.endTime = next.endTime;
+      current.time = `${current.startTime} – ${next.endTime}`;
+    } else {
+      merged.push(current);
+      current = { ...next };
+    }
+  }
+
+  merged.push(current);
+  return merged;
+}
+
+// ────────────────────────────────────────────────
+// MAIN ENDPOINT
+// ────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
-    const sectionFilter = (formData.get("section") as string || "").trim().toUpperCase();
+    const sectionFilter = (formData.get("section") as string ?? "").trim().toUpperCase();
 
     if (!file) {
-      return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
+      return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const workbook = XLSX.read(buffer, { type: "buffer" });
+    const workbook = XLSX.read(buffer, { type: "buffer", cellDates: false });
 
     const allEntries: LectureEntry[] = [];
     const allSections = new Set<string>();
+    const sampleCells: string[] = [];
+
+    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+    if (firstSheet?.["!ref"]) {
+      const rng = XLSX.utils.decode_range(firstSheet["!ref"]);
+      let count = 0;
+      outer: for (let r = rng.s.r; r <= rng.e.r; r++) {
+        for (let c = rng.s.c; c <= rng.e.c; c++) {
+          const val = firstSheet[XLSX.utils.encode_cell({ r, c })]?.v;
+          if (val && typeof val === "string" && val.trim()) {
+            sampleCells.push(val.trim());
+            if (++count >= 35) break outer;
+          }
+        }
+      }
+    }
 
     for (const sheetName of workbook.SheetNames) {
       const sheet = workbook.Sheets[sheetName];
-      if (!sheet["!ref"]) continue;
+      if (!sheet?.["!ref"]) continue;
 
       const range = XLSX.utils.decode_range(sheet["!ref"]);
-      const merges = sheet["!merges"] || [];
+      const merges = sheet["!merges"] ?? [];
 
-      // Build merge map for fast lookups
       const mergeMap = new Map<string, { r: number; c: number }>();
-      for (const merge of merges) {
-        for (let r = merge.s.r; r <= merge.e.r; r++) {
-          for (let c = merge.s.c; c <= merge.e.c; c++) {
-            if (r !== merge.s.r || c !== merge.s.c) {
-              mergeMap.set(`${r},${c}`, { r: merge.s.r, c: merge.s.c });
+      for (const m of merges) {
+        for (let r = m.s.r; r <= m.e.r; r++) {
+          for (let c = m.s.c; c <= m.e.c; c++) {
+            if (r !== m.s.r || c !== m.s.c) {
+              mergeMap.set(`${r},${c}`, { r: m.s.r, c: m.s.c });
             }
           }
         }
       }
 
-      function getCellValue(r: number, c: number): string {
-        const mergeOrigin = mergeMap.get(`${r},${c}`);
-        const targetR = mergeOrigin ? mergeOrigin.r : r;
-        const targetC = mergeOrigin ? mergeOrigin.c : c;
-        const addr = XLSX.utils.encode_cell({ r: targetR, c: targetC });
-        const cell = sheet[addr];
-        return cell ? String(cell.v ?? "").trim() : "";
+      function getMergedCellValue(r: number, c: number): string {
+        const origin = mergeMap.get(`${r},${c}`);
+        const tr = origin ? origin.r : r;
+        const tc = origin ? origin.c : c;
+        const addr = XLSX.utils.encode_cell({ r: tr, c: tc });
+        const val = sheet[addr]?.v;
+        return val != null ? String(val).trim() : "";
       }
 
-      // Scan the sheet to find day blocks and their time headers
-      // Structure per day block:
-      //   - Row with day name + time slots in cols D+ (or day separator)
-      //   - Row with "Rooms" + time slots repeated  
-      //   - Data rows: col B = room, col C = floor, col D+ = lecture cells
-      
       let currentDay = "";
-      let currentTimeSlots: { col: number; label: string }[] = [];
+      let currentTimeSlots: TimeSlotInfo[] = [];
 
-      for (let r = range.s.r; r <= range.e.r; r++) {
-        // Check all first few columns for day names
-        let dayFound: string | null = null;
-        for (let c = 0; c <= 2; c++) {
-          const val = getCellValue(r, c);
-          if (val) {
-            const day = isDayName(val);
-            if (day) {
-              dayFound = day;
-              break;
-            }
+      for (let row = range.s.r; row <= range.e.r; row++) {
+        for (let col = 0; col <= Math.min(4, range.e.c); col++) {
+          const val = getMergedCellValue(row, col);
+          if (!val) continue;
+          const day = normalizeDayName(val);
+          if (day) {
+            currentDay = day;
+            break;
           }
         }
 
-        if (dayFound) {
-          currentDay = dayFound;
-        }
-
-        // Check if this row has time slots (it's a time header row)
-        const rowTimes: { col: number; label: string }[] = [];
-        for (let c = 2; c <= range.e.c; c++) {
-          const val = getCellValue(r, c);
-          if (val && isTimeSlot(val)) {
-            // Normalize the time label
-            const label = val.replace(/\s+/g, " ").trim();
-            if (!rowTimes.find((t) => t.col === c)) {
-              rowTimes.push({ col: c, label });
-            }
+        const rowTimes: TimeSlotInfo[] = [];
+        for (let col = 2; col <= range.e.c; col++) {
+          const val = getMergedCellValue(row, col);
+          if (!val || !isLikelyTimeSlot(val)) continue;
+          const norm = normalizeTimeSlot(val);
+          if (norm) {
+            rowTimes.push({
+              col,
+              raw: val,
+              start12: norm.start12,
+              end12: norm.end12
+            });
           }
         }
 
         if (rowTimes.length >= 3) {
-          // This is a time header row for the current day
           currentTimeSlots = rowTimes;
           continue;
         }
 
-        // Skip if we don't have a day or time slots yet
         if (!currentDay || currentTimeSlots.length === 0) continue;
 
-        // Check if col B (index 1) has a room name
-        const colB = getCellValue(r, 1);
-        if (!colB || !isRoomName(colB)) continue;
+        let room = "";
+        for (let col = 0; col <= Math.min(3, range.e.c); col++) {
+          const val = getMergedCellValue(row, col);
+          if (isLikelyRoom(val)) {
+            room = normalizeRoomName(val);
+            break;
+          }
+        }
+        if (!room) continue;
 
-        const room = extractRoomShort(colB);
-
-          // Parse lecture cells at each time slot column
         for (const ts of currentTimeSlots) {
-          const cellVal = getCellValue(r, ts.col);
-          if (!cellVal || isSkippable(cellVal)) continue;
+          const content = getMergedCellValue(row, ts.col);
+          if (!content || isProbablyHeaderOrNote(content)) continue;
 
-          const { subject, teacher, sections } = parseCell(cellVal);
+          const sections = extractAllSections(content);
           if (sections.length === 0) continue;
 
-          const { start, end } = splitTimeSlot(ts.label);
-            for (const sec of sections) {
-              allSections.add(sec);
-              allEntries.push({
-                day: currentDay,
-                time: ts.label,
-                startTime: start,
-                endTime: end,
-                subject,
-                teacher,
-                room,
-                section: sec,
-              });
+          let subject = "Unknown Subject";
+          let teacher = "Unknown Teacher";
+
+          const lines = content.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+          for (const line of lines) {
+            if (extractAllSections(line).length > 0) continue;
+            if (isLikelyTimeSlot(line)) continue;
+            if (/^(Mr\.?|Ms\.?|Mrs\.?|Dr\.?|Prof\.?|Engr\.?|Sir|Madam)/i.test(line)) {
+              teacher = line;
+              continue;
             }
+            if (subject === "Unknown Subject") {
+              subject = line.replace(SECTION_PATTERN, "").trim() || subject;
+            }
+          }
+
+          for (const sec of sections) {
+            allSections.add(sec);
+            allEntries.push({
+              day: currentDay,
+              time: `${ts.start12} – ${ts.end12}`,
+              startTime: ts.start12,
+              endTime: ts.end12,
+              subject,
+              teacher,
+              room,
+              section: sec
+            });
+          }
         }
       }
     }
 
-    // Deduplicate
+    // ── Post-processing ──────────────────────────────────────
+
     const seen = new Set<string>();
-    const deduped = allEntries.filter((e) => {
-      const key = `${e.section}|${e.day}|${e.time}|${e.subject}|${e.teacher}|${e.room}`;
+    const unique = allEntries.filter(e => {
+      const key = `${e.section}|${e.day}|${e.startTime}|${e.subject}|${e.teacher}|${e.room}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
     });
 
-    // Sort
-    const dayOrder: Record<string, number> = {
-      Monday: 0, Tuesday: 1, Wednesday: 2, Thursday: 3, Friday: 4, Saturday: 5, Sunday: 6,
-    };
-      deduped.sort((a, b) => {
-        const dA = dayOrder[a.day] ?? 99;
-        const dB = dayOrder[b.day] ?? 99;
-        if (dA !== dB) return dA - dB;
-        return timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
+    unique.sort((a, b) => {
+      const d = DAY_ORDER[a.day] - DAY_ORDER[b.day];
+      if (d !== 0) return d;
+      return time12ToMinutes(a.startTime) - time12ToMinutes(b.startTime);
+    });
+
+    const filtered = sectionFilter
+      ? unique.filter(e => e.section === sectionFilter)
+      : unique;
+
+    const sectionsList = [...allSections].sort();
+    const sectionsToShow = sectionFilter ? [sectionFilter] : sectionsList;
+
+    const sectionData: Record<string, any> = {};
+
+    for (const sec of sectionsToShow) {
+      let secEntries = filtered.filter(e => e.section === sec);
+      if (secEntries.length === 0) continue;
+
+      secEntries = mergeConsecutiveClasses(secEntries);
+
+      const days = [...new Set(secEntries.map(e => e.day))].sort((a,b) => DAY_ORDER[a] - DAY_ORDER[b]);
+
+      const times = [...new Set(secEntries.map(e => e.time))].sort((a,b) => {
+        const ta = a.split("–")[0].trim();
+        const tb = b.split("–")[0].trim();
+        return time12ToMinutes(ta) - time12ToMinutes(tb);
       });
 
-    // Filter if section specified
-    const entries = sectionFilter
-      ? deduped.filter((e) => e.section === sectionFilter)
-      : deduped;
-
-    // Build per-section data
-    const sectionsList = [...allSections].sort();
-    const sectionsToShow = sectionFilter
-      ? [sectionFilter]
-      : sectionsList;
-
-    const sectionData: Record<
-      string,
-      {
-        entries: LectureEntry[];
-        grid: Record<string, Record<string, { subject: string; teacher: string; room: string }>>;
-        days: string[];
-        times: string[];
-      }
-    > = {};
-
-      for (const sec of sectionsToShow) {
-        const secEntries = entries.filter((e) => e.section === sec);
-        if (secEntries.length === 0) continue;
-
-        // Merge consecutive identical classes
-        const mergedEntries = mergeConsecutiveClasses(secEntries);
-
-        const days = [...new Set(mergedEntries.map((e) => e.day))].sort(
-          (a, b) => (dayOrder[a] ?? 99) - (dayOrder[b] ?? 99)
-        );
-        const times = [...new Set(mergedEntries.map((e) => e.time))].sort((a, b) => {
-          const aStart = a.split(/[-–]/)[0]?.trim() || "";
-          const bStart = b.split(/[-–]/)[0]?.trim() || "";
-          return timeToMinutes(aStart) - timeToMinutes(bStart);
-        });
-
-        const grid: Record<string, Record<string, { subject: string; teacher: string; room: string }>> = {};
-        for (const t of times) {
-          grid[t] = {};
-          for (const d of days) {
-            const match = mergedEntries.find((e) => e.day === d && e.time === t);
-            if (match) {
-              grid[t][d] = {
-                subject: match.subject,
-                teacher: match.teacher,
-                room: match.room,
-              };
-            }
+      const grid: Record<string, Record<string, any>> = {};
+      for (const t of times) {
+        grid[t] = {};
+        for (const d of days) {
+          const match = secEntries.find(e => e.day === d && e.time === t);
+          if (match) {
+            grid[t][d] = {
+              subject: match.subject,
+              teacher: match.teacher,
+              room: match.room
+            };
           }
         }
-
-        sectionData[sec] = { entries: mergedEntries, grid, days, times };
       }
 
+      sectionData[sec] = { entries: secEntries, grid, days, times };
+    }
+
+    const aiSuggestions = await getAiDiagnostic(sampleCells, filtered.length, sectionsList);
+
     return NextResponse.json({
+      success: true,
       section: sectionFilter || "ALL",
       sectionData,
       availableSections: sectionsList,
-      totalEntries: entries.length,
+      totalEntries: filtered.length,
+      aiDiagnostic: aiSuggestions || undefined,
     });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+
+  } catch (err: any) {
+    console.error("[Timetable Parser] Error:", err);
+    return NextResponse.json(
+      { error: "Failed to parse timetable", details: err.message },
+      { status: 500 }
+    );
   }
 }

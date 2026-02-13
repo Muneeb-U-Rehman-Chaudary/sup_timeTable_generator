@@ -1,6 +1,8 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
+import { Router } from "next/router";
 import { useState, useEffect, useRef, useCallback } from "react";
 
 interface LectureEntry {
@@ -339,7 +341,6 @@ export default function Home() {
       ),
     },
   ];
-
   return (
     <div style={{ minHeight: "100vh", background: c.bg, color: c.fg, fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
       {/* Navbar */}
@@ -351,7 +352,7 @@ export default function Home() {
       }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <Image src='/images/image1.png' alt='Logo' width={50} height={50} />
+            <Link href="/"><Image  src='/images/image1.png' alt='Logo' width={50} height={50} /></Link>
         </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
