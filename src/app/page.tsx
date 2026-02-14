@@ -855,7 +855,7 @@ export default function Home() {
                     boxShadow: `0 0 8px ${c.accent}`,
                   }}
                 />
-                Open Source Timetable Tool
+                AI-Powered Timetable Tool
               </div>
 
               {/* Main heading */}
@@ -868,13 +868,36 @@ export default function Home() {
                   lineHeight: 1.05,
                   marginBottom: 20,
                   background:
-                    "linear-gradient(180deg, #ffffff 0%, #ffffff 40%, #999999 100%)",
+                    "linear-gradient(180deg, #ffffff 20%, #888888 100%)",
                   WebkitBackgroundClip: "text",
                   WebkitTextFillColor: "transparent",
                 }}
               >
-                The Timetable
+                <span
+                  style={{
+                    background:
+                      "linear-gradient(180deg, #ffffff 35%, #888888 100%)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    fontSize: "1.1em",
+                  }}
+                >
+                  {" "}
+                  AI-Powered
+                </span>
                 <br />
+                <span
+                  style={{
+                    background:
+                      "linear-gradient(135deg, #a78bfa, #c084fc, #e879f9, #a78bfa)",
+                    backgroundSize: "200% auto",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    animation: "aiTextShimmer 4s linear infinite",
+                  }}
+                >
+                  Timetable
+                </span>{" "}
                 Generator
               </h1>
 
@@ -884,14 +907,50 @@ export default function Home() {
                   fontSize: "clamp(16px, 2vw, 20px)",
                   color: c.fgMuted,
                   lineHeight: 1.6,
-                  maxWidth: 520,
-                  margin: "0 auto 40px",
+                  maxWidth: 560,
+                  margin: "0 auto 16px",
                   letterSpacing: "-0.01em",
                 }}
               >
-                Upload your department&apos;s Excel timetable and instantly get
-                a clean, organized schedule with PDF export.
+                Upload your department&apos;s Excel timetable and let our AI
+                instantly parse, analyze, and organize your schedule into a
+                clean format with smart insights.
               </p>
+
+              {/* AI feature pills */}
+              <div
+                className="fade-in-up delay-2"
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  justifyContent: "center",
+                  gap: 8,
+                  marginBottom: 40,
+                }}
+              >
+                {[
+                  "Smart Parsing",
+                  "AI Analysis",
+                  "PDF Export",
+                  "Multi-Section",
+                ].map((label, i) => (
+                  <span
+                    key={label}
+                    className={`hero-pill hero-pill-${i}`}
+                    style={{
+                      padding: "5px 14px",
+                      borderRadius: 999,
+                      fontSize: 12,
+                      fontWeight: 500,
+                      color: "rgba(167,139,250,0.9)",
+                      background: "rgba(124,92,252,0.08)",
+                      border: "1px solid rgba(124,92,252,0.15)",
+                    }}
+                  >
+                    {label}
+                  </span>
+                ))}
+              </div>
 
               {/* Upload area */}
               {loading ? (
@@ -1052,46 +1111,270 @@ export default function Home() {
             }}
           />
 
-          {/* Features Section — illustration boxes */}
+          {/* Unified Features & How It Works Section */}
           <section
-            style={{ maxWidth: 1000, margin: "0 auto", padding: "80px 24px" }}
+            style={{
+              position: "relative",
+              overflow: "hidden",
+              maxWidth: 1100,
+              margin: "0 auto",
+              padding: "80px 24px 100px",
+            }}
           >
-            <div style={{ textAlign: "center", marginBottom: 56 }}>
-              <h2
+            {/* Background glow */}
+            <div
+              style={{
+                position: "absolute",
+                top: "30%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                width: "800px",
+                height: "500px",
+                background:
+                  "radial-gradient(ellipse, rgba(124,92,252,0.05) 0%, transparent 70%)",
+                pointerEvents: "none",
+              }}
+            />
+
+            {/* Section Header */}
+            <div
+              style={{
+                textAlign: "center",
+                marginBottom: 60,
+                position: "relative",
+              }}
+            >
+              <div
                 className="fade-in-up"
                 style={{
-                  fontSize: "clamp(24px, 4vw, 40px)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "5px 14px",
+                  borderRadius: 999,
+                  background: "rgba(124,92,252,0.08)",
+                  border: "1px solid rgba(124,92,252,0.15)",
+                  marginBottom: 20,
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: "rgba(167,139,250,0.9)",
+                }}
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"
+                  />
+                </svg>
+                How It Works
+              </div>
+              <h2
+                className="fade-in-up delay-1"
+                style={{
+                  fontSize: "clamp(26px, 4.5vw, 64px)",
                   fontWeight: 700,
                   letterSpacing: "-0.03em",
-                  marginBottom: 12,
+                  marginBottom: 14,
                   background:
                     "linear-gradient(180deg, #ffffff 20%, #888888 100%)",
                   WebkitBackgroundClip: "text",
                   WebkitTextFillColor: "transparent",
                 }}
               >
-                Everything you need
+                From Excel to Insight
               </h2>
               <p
-                className="fade-in-up delay-1"
+                className="fade-in-up delay-2"
                 style={{
                   color: c.fgMuted,
                   fontSize: 16,
-                  maxWidth: 440,
+                  maxWidth: 520,
                   margin: "0 auto",
+                  lineHeight: 1.6,
                 }}
               >
-                A complete toolkit to transform messy Excel timetables into
-                clean, shareable schedules.
+                Powered by intelligent parsing and AI analysis to transform
+                messy Excel timetables into clean, shareable schedules.
               </p>
             </div>
 
+            {/* 3-Step Process Cards */}
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                gridTemplateColumns: "repeat(3, 1fr)",
+                gap: 20,
+                position: "relative",
+                marginBottom: 64,
+              }}
+              className="steps-grid"
+            >
+              {[
+                {
+                  step: "01",
+                  title: "Upload Your File",
+                  desc: "Drop your department's Excel timetable. Handles complex merged cells, multi-section layouts, and messy formatting.",
+                  icon: (
+                    <svg
+                      width="24"
+                      height="24"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke={c.accent}
+                      strokeWidth={1.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
+                      />
+                    </svg>
+                  ),
+                },
+                {
+                  step: "02",
+                  title: "AI Analyzes & Structures",
+                  desc: "Our AI engine parses every row, identifies sections, maps time slots, and generates smart insights about patterns.",
+                  icon: (
+                    <svg
+                      width="24"
+                      height="24"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke={c.accent}
+                      strokeWidth={1.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a2.25 2.25 0 00-1.455-1.455L15.75 6l1.036-.259a2.25 2.25 0 001.455-1.455L18 3.25l.259 1.035a2.25 2.25 0 001.455 1.455l1.035.259-1.035.259a2.25 2.25 0 00-1.455 1.455z"
+                      />
+                    </svg>
+                  ),
+                },
+                {
+                  step: "03",
+                  title: "View & Export",
+                  desc: "Browse your timetable in grid, detail, or list views. Download beautifully formatted PDFs in one click.",
+                  icon: (
+                    <svg
+                      width="24"
+                      height="24"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke={c.accent}
+                      strokeWidth={1.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
+                      />
+                    </svg>
+                  ),
+                },
+              ].map((item, i) => (
+                <div
+                  key={i}
+                  className={`how-it-works-card fade-in-up delay-${i + 1}`}
+                  style={{
+                    position: "relative",
+                    borderRadius: 16,
+                    border: `1px solid ${c.cardBorder}`,
+                    background: c.card,
+                    padding: "32px 28px",
+                    transition: "border-color 0.3s, transform 0.3s",
+                    cursor: "default",
+                  }}
+                >
+                  {/* Step number watermark */}
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: 16,
+                      right: 20,
+                      fontSize: 42,
+                      fontWeight: 800,
+                      color: "rgba(124,92,252,0.2)",
+                      lineHeight: 1,
+                      letterSpacing: "-0.04em",
+                      userSelect: "none",
+                    }}
+                  >
+                    {item.step}
+                  </span>
+
+                  {/* Icon */}
+                  <div
+                    style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 12,
+                      background: "rgba(124,92,252,0.08)",
+                      border: "1px solid rgba(124,92,252,0.15)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      marginBottom: 20,
+                    }}
+                  >
+                    {item.icon}
+                  </div>
+
+                  <h3
+                    style={{
+                      fontSize: 17,
+                      fontWeight: 600,
+                      letterSpacing: "-0.01em",
+                      marginBottom: 10,
+                      color: c.fg,
+                    }}
+                  >
+                    {item.title}
+                  </h3>
+                  <p
+                    style={{
+                      fontSize: 14,
+                      color: c.fgMuted,
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    {item.desc}
+                  </p>
+                </div>
+              ))}
+
+              {/* Connecting line between cards (desktop) */}
+              <div
+                className="how-it-works-connector"
+                style={{
+                  position: "absolute",
+                  top: "50%",
+                  left: "20%",
+                  right: "20%",
+                  height: 1,
+                  background: `linear-gradient(90deg, transparent, rgba(124,92,252,0.12), transparent)`,
+                  pointerEvents: "none",
+                }}
+              />
+            </div>
+
+            {/* Feature highlights row */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(4, 1fr)",
                 gap: 16,
               }}
+              className="features-grid"
             >
               {features.map((f, i) => (
                 <div
@@ -1106,18 +1389,17 @@ export default function Home() {
                     cursor: "default",
                   }}
                 >
-                  {/* Illustration area with grid bg */}
+                  {/* Illustration area */}
                   <div
                     style={{
-                      height: 160,
+                      height: 140,
                       position: "relative",
-                      padding: 24,
+                      padding: 20,
                       backgroundImage: `linear-gradient(${c.gridLine} 1px, transparent 1px), linear-gradient(90deg, ${c.gridLine} 1px, transparent 1px)`,
                       backgroundSize: "24px 24px",
                       borderBottom: `1px solid ${c.cardBorder}`,
                     }}
                   >
-                    {/* Subtle gradient overlay */}
                     <div
                       style={{
                         position: "absolute",
@@ -1137,21 +1419,21 @@ export default function Home() {
                       {f.illustration}
                     </div>
                   </div>
-                  {/* Text area */}
-                  <div style={{ padding: "20px 24px 24px" }}>
+                  {/* Text */}
+                  <div style={{ padding: "16px 20px 20px" }}>
                     <h3
                       style={{
-                        fontSize: 16,
+                        fontSize: 15,
                         fontWeight: 600,
                         letterSpacing: "-0.01em",
-                        marginBottom: 8,
+                        marginBottom: 6,
                       }}
                     >
                       {f.title}
                     </h3>
                     <p
                       style={{
-                        fontSize: 14,
+                        fontSize: 13,
                         color: c.fgMuted,
                         lineHeight: 1.55,
                       }}
@@ -1876,38 +2158,57 @@ export default function Home() {
           )}
           {data?.aiAnalysis && (
             <div
+              className="ai-analysis-card fade-in-up delay-4"
               style={{
                 marginTop: 24,
-                padding: "16px 20px",
-                background: c.aiBg,
-                border: `1px solid ${c.aiBorder}`,
+                padding: "24px 28px",
+                background: "rgba(124,92,252,0.04)",
                 borderRadius: 10,
                 fontSize: 13,
                 lineHeight: 1.5,
+                position: "relative",
+                overflow: "hidden",
               }}
             >
+              {/* Decorative background sparkles */}
+              <div
+                style={{
+                  position: "absolute",
+                  top: 20,
+                  right: 24,
+                  pointerEvents: "none",
+                  opacity: 0.06,
+                }}
+              >
+                <svg width="80" height="80" viewBox="0 0 24 24" fill={c.accent}>
+                  <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                </svg>
+              </div>
+
               <div
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 8,
-                  marginBottom: 12,
+                  gap: 10,
+                  marginBottom: 16,
                 }}
               >
                 <div
+                  className="ai-icon-pulse"
                   style={{
-                    width: 20,
-                    height: 20,
+                    width: 28,
+                    height: 28,
                     borderRadius: "50%",
-                    background: "rgba(124,92,252,0.2)",
+                    background: "rgba(124,92,252,0.15)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
+                    flexShrink: 0,
                   }}
                 >
                   <svg
-                    width="12"
-                    height="12"
+                    width="14"
+                    height="14"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke={c.accent}
@@ -1920,16 +2221,21 @@ export default function Home() {
                     />
                   </svg>
                 </div>
-                <h3
-                  style={{
-                    fontSize: 15,
-                    fontWeight: 600,
-                    color: c.accent,
-                    margin: 0,
-                  }}
-                >
-                  AI Analysis
-                </h3>
+                <div>
+                  <h3
+                    className="ai-title-shimmer"
+                    style={{
+                      fontSize: 16,
+                      fontWeight: 700,
+                      margin: 0,
+                    }}
+                  >
+                    AI Analysis
+                  </h3>
+                  <span style={{ fontSize: 11, color: c.fgDim }}>
+                    Smart insights from your timetable data
+                  </span>
+                </div>
               </div>
 
               <ul
@@ -1937,12 +2243,37 @@ export default function Home() {
                   margin: 0,
                   paddingLeft: 20,
                   color: c.fgMuted,
-                  listStyleType: "disc",
+                  listStyleType: "none",
+                  position: "relative",
                 }}
               >
                 {aiLines.map((line, i) => (
-                  <li key={i} style={{ marginBottom: 6 }}>
-                    {line.trim().replace(/^[•\-\*]\s*/, "")}
+                  <li
+                    key={i}
+                    className="ai-line-reveal"
+                    style={{
+                      marginBottom: 8,
+                      paddingLeft: 8,
+                      animationDelay: `${0.3 + i * 0.08}s`,
+                      position: "relative",
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 8,
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: "inline-block",
+                        width: 4,
+                        height: 4,
+                        borderRadius: "50%",
+                        background: c.accent,
+                        flexShrink: 0,
+                        marginTop: 7,
+                        opacity: 0.6,
+                      }}
+                    />
+                    <span>{line.trim().replace(/^[•\-\*]\s*/, "")}</span>
                   </li>
                 ))}
               </ul>
