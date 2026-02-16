@@ -334,13 +334,8 @@ Write ONLY:
 
 Be concise. No introduction, no markdown, just bullets. [/INST]`;
 
-  const modelsToTry = [
-    "meta-llama/Meta-Llama-3.1-8B-Instruct",         
-    "mistralai/Mistral-Nemo-Instruct-2407",        
-    "mistralai/Mistral-7B-Instruct-v0.3",        
-    "Qwen/Qwen2.5-Coder-7B-Instruct",            
+  const modelsToTry = [     
     "meta-llama/Llama-3.3-70B-Instruct",           
-    
   ];
 
   for (const model of modelsToTry) {
