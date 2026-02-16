@@ -334,44 +334,59 @@ Write ONLY:
 
 Be concise. No introduction, no markdown, just bullets. [/INST]`;
 
-  try {
-    const res = await fetch(HF_API, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${HF_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "Qwen/Qwen2.5-7B-Instruct",
-        messages: [{ role: "user", content: prompt }],
-        max_tokens: 280,
-        temperature: 0.25,
-        top_p: 0.9,
-      }),
-    });
+  const modelsToTry = [
+    "meta-llama/Meta-Llama-3.1-8B-Instruct",         
+    "mistralai/Mistral-Nemo-Instruct-2407",        
+    "mistralai/Mistral-7B-Instruct-v0.3",        
+    "Qwen/Qwen2.5-Coder-7B-Instruct",            
+    "meta-llama/Llama-3.3-70B-Instruct",           
+    
+  ];
 
-    console.log("[AI Diagnostic] Response status:", res.status);
+  for (const model of modelsToTry) {
+    try {
+      console.log(`[AI Diagnostic] Trying model: ${model}`);
 
-    if (!res.ok) {
-      const errorText = await res.text().catch(() => "(could not read error body)");
-      console.log("[AI Diagnostic] API failed:", res.status, errorText);
-      return null;
+      const res = await fetch(HF_API, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${HF_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: 280,
+          temperature: 0.25,
+          top_p: 0.9,
+        }),
+      });
+
+      console.log(`[AI Diagnostic] Response status for ${model}:`, res.status);
+
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => "(could not read error body)");
+        console.log(`[AI Diagnostic] Failed for ${model}: ${res.status} - ${errorText}`);
+        continue; // try next model
+      }
+
+      const json = await res.json();
+      const answer = json?.choices?.[0]?.message?.content?.trim() || null;
+
+      if (answer) {
+        console.log(`[AI Diagnostic] Success with ${model} – generated text length:`, answer.length);
+        return answer;
+      } else {
+        console.log(`[AI Diagnostic] No content returned from ${model}`);
+      }
+    } catch (err) {
+      console.error(`[AI Diagnostic] Network/parsing error with ${model}:`, err);
+      // continue to next model
     }
-
-    const json = await res.json();
-    const answer = json?.choices?.[0]?.message?.content?.trim() || null;
-
-    if (answer) {
-      console.log("[AI Diagnostic] Success – generated text length:", answer.length);
-    } else {
-      console.log("[AI Diagnostic] No content returned from model");
-    }
-
-    return answer;
-  } catch (err) {
-    console.error("[AI Diagnostic] Network / parsing error:", err);
-    return null;
   }
+
+  console.warn("[AI Diagnostic] All model attempts failed – returning null");
+  return null;
 }
 
 // ────────────────────────────────────────────────
